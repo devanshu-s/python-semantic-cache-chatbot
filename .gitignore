@@ -1,0 +1,25 @@
+# Environment variables
+.env
+
+# Python Byte Code & Cache
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Database & Vector Index
+backend/database/faiss.index
+backend/database/cache_store.json
+backend/database/metadata.db
+*.index
+
+# Virtual Environments
+venv/
+env/
+.venv/
+
+# OS specific
+.DS_Store
+Thumbs.db
