@@ -11,14 +11,14 @@ class Settings(BaseSettings):
     PORT: int = int(os.getenv("PORT", 8000))
     BACKEND_URL: str = os.getenv("BACKEND_URL", "http://localhost:8000")
     
-    # Semantic Cache Config (0.45 threshold)
-    SIMILARITY_THRESHOLD: float = float(os.getenv("SIMILARITY_THRESHOLD", 0.45))
+    # Semantic Cache Config (0.60 threshold)
+    SIMILARITY_THRESHOLD: float = float(os.getenv("SIMILARITY_THRESHOLD", 0.60))
     FAISS_DIMENSION: int = int(os.getenv("FAISS_DIMENSION", 768))
     FAISS_INDEX_PATH: str = os.getenv("FAISS_INDEX_PATH", "backend/database/faiss.index")
     CACHE_METADATA_PATH: str = os.getenv("CACHE_METADATA_PATH", "backend/database/cache_store.json")
     
     # Gemini AI Models
-    GEMINI_MODEL: str = os.getenv("GEMINI_MODEL", "gemini-2.0-flash")
+    GEMINI_MODEL: str = os.getenv("GEMINI_MODEL", "gemini-2.0-flash-lite")
     EMBEDDING_MODEL: str = os.getenv("EMBEDDING_MODEL", "text-embedding-004")
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
