@@ -34,3 +34,11 @@ def test_cache_clear():
     assert semantic_cache_service.get_stats().total_entries == 1
     semantic_cache_service.clear_cache()
     assert semantic_cache_service.get_stats().total_entries == 0
+
+def test_set_threshold():
+    old_threshold = semantic_cache_service.default_threshold
+    new_thresh = semantic_cache_service.set_threshold(0.75)
+    assert new_thresh == 0.75
+    assert semantic_cache_service.default_threshold == 0.75
+    semantic_cache_service.set_threshold(old_threshold)
+

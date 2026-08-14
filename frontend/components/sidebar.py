@@ -77,14 +77,53 @@ def render_sidebar(backend_url: str):
 
         st.divider()
 
+        # 🎛️ Semantic Cache Configuration
+        st.markdown("### 🎛️ Cache Settings")
+        
+        if "similarity_threshold" not in st.session_state:
+            st.session_state["similarity_threshold"] = 0.60
+
+        current_thresh = st.session_state["similarity_threshold"]
+
+        new_thresh = st.slider(
+            "Similarity Threshold",
+            min_value=0.00,
+            max_value=1.00,
+            value=float(current_thresh),
+            step=0.05,
+            help="Adjust the minimum cosine similarity required for a Cache Hit. Lower values require closer query matches; higher values accept looser semantic matches.",
+            key="thresh_slider"
+        )
+
+        if new_thresh != current_thresh:
+            st.session_state["similarity_threshold"] = new_thresh
+            # Optionally sync with backend
+            try:
+                requests.post(f"{backend_url}/api/cache/threshold?threshold={new_thresh}", timeout=3)
+            except Exception:
+                pass
+            st.toast(f"Threshold set to {new_thresh:.2f}", icon="🎛️")
+            st.rerun()
+
+        # Sensitivity Badge helper
+        if new_thresh < 0.40:
+            st.caption("🎯 **Mode: Strict Match** (Higher precision, fewer cache hits)")
+        elif new_thresh <= 0.70:
+            st.caption("⚖️ **Mode: Balanced** (Optimal cache hit ratio)")
+        else:
+            st.caption("⚡ **Mode: High Cache Hits** (Looser semantic matching)")
+
+        st.divider()
+
         # Backend Connection Status
         try:
             health_res = requests.get(f"{backend_url}/", timeout=3)
             if health_res.status_code == 200:
                 info = health_res.json()
                 st.success("Backend: Connected")
-                st.caption(f"Backend Threshold: `{info.get('similarity_threshold', 0.60)}`")
+                st.caption(f"Active Threshold: `{st.session_state['similarity_threshold']:.2f}`")
             else:
                 st.warning("Backend: Offline")
         except Exception:
             st.error("Backend: Connection Error")
+

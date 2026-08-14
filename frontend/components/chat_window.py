@@ -172,8 +172,10 @@ def render_chat_window(backend_url: str):
         
         payload = {
             "query": active_query,
-            "history": history_payload
+            "history": history_payload,
+            "similarity_threshold": st.session_state.get("similarity_threshold", 0.60)
         }
+
 
         with st.spinner("Thinking..."):
             try:

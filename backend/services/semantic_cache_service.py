@@ -128,5 +128,12 @@ class SemanticCacheService:
             file_path=settings.FAISS_INDEX_PATH
         )
 
+    def set_threshold(self, threshold: float) -> float:
+        """Update default similarity threshold dynamically."""
+        self.default_threshold = max(0.0, min(1.0, threshold))
+        logger.info(f"Updated semantic cache default threshold to: {self.default_threshold}")
+        return self.default_threshold
+
+
 # Fixed syntax in get_stats
 semantic_cache_service = SemanticCacheService()

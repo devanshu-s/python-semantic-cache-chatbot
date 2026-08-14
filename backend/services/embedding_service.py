@@ -9,6 +9,7 @@ class EmbeddingService:
         self.dimension = settings.FAISS_DIMENSION
         self.api_key = settings.GEMINI_API_KEY
         self.model = settings.EMBEDDING_MODEL
+        self._use_fallback = False
 
     def generate_embedding(self, text: str) -> np.ndarray:
         """
@@ -19,7 +20,7 @@ class EmbeddingService:
         if not cleaned_text:
             return np.zeros(self.dimension, dtype=np.float32)
 
-        if self.api_key and self.api_key != "your_gemini_api_key_here":
+        if not self._use_fallback and self.api_key and self.api_key != "your_gemini_api_key_here":
             try:
                 # Primary: Try google-genai SDK
                 try:
@@ -42,10 +43,12 @@ class EmbeddingService:
                     vec = np.array(res['embedding'], dtype=np.float32)
                     return normalize_vector(vec)
             except Exception as e:
-                logger.warning(f"Gemini embedding API call failed: {e}. Falling back to semantic feature generator.")
+                logger.warning(f"Gemini embedding API call failed: {e}. Falling back to semantic feature generator for future calls.")
+                self._use_fallback = True
 
         # Fallback deterministic semantic vector generator
         return self._generate_fallback_embedding(cleaned_text)
+
 
     def _generate_fallback_embedding(self, text: str) -> np.ndarray:
         """
