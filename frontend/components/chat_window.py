@@ -5,13 +5,16 @@ from typing import List
 
 def extract_python_code(content: str) -> str:
     """Extract Python code blocks enclosed in ```python ... ``` or ``` ... ``` from markdown string."""
-    matches = re.findall(r"```python\s*(.*?)\s*```", content, re.DOTALL)
+    # Match ```python, ```py, ```Python (case-insensitive)
+    matches = re.findall(r"```(?:python|py)\s*\n?(.*?)\n?```", content, re.DOTALL | re.IGNORECASE)
     if matches:
-        return "\n\n".join(matches)
-    matches_generic = re.findall(r"```\s*(.*?)\s*```", content, re.DOTALL)
+        return "\n\n".join(m.strip() for m in matches if m.strip())
+    # Fallback to generic ``` code blocks
+    matches_generic = re.findall(r"```\s*\n?(.*?)\n?```", content, re.DOTALL)
     if matches_generic:
-        return "\n\n".join(matches_generic)
+        return "\n\n".join(m.strip() for m in matches_generic if m.strip())
     return ""
+
 
 def get_followup_suggestions(last_query: str, last_response: str) -> List[str]:
     """
@@ -90,6 +93,39 @@ def render_chat_window(backend_url: str):
                 st.session_state["preset_query"] = "Explain list comprehension syntax in Python with code examples"
                 st.rerun()
 
+        # 🌐 LeetCode Problem URL / Title Auto-Fetcher
+        st.markdown("<div style='margin-top: 14px;'></div>", unsafe_allow_html=True)
+        st.markdown("**🌐 Auto-Fetch LeetCode Problem:**")
+        
+        col_lc_input, col_lc_btn = st.columns([3.2, 1.2])
+        with col_lc_input:
+            lc_input = st.text_input(
+                label="LeetCode URL or Problem Title",
+                placeholder="e.g. https://leetcode.com/problems/two-sum/ or 'Two Sum'",
+                label_visibility="collapsed",
+                key="lc_fetch_input"
+            )
+        with col_lc_btn:
+            fetch_btn = st.button("⚡ Fetch", use_container_width=True, key="lc_fetch_submit_btn", type="secondary")
+
+        if fetch_btn and lc_input.strip():
+            with st.spinner("🔍 Fetching problem details from LeetCode..."):
+                try:
+                    res = requests.post(f"{backend_url}/api/leetcode/fetch", json={"url_or_title": lc_input.strip()}, timeout=15)
+                    if res.status_code == 200:
+                        data = res.json()
+                        st.session_state["preset_query"] = data.get("formatted_prompt", "")
+                        # Prepopulate sandbox starter code if available
+                        if data.get("python_starter_code"):
+                            st.session_state["sandbox_code"] = data["python_starter_code"]
+                        st.toast(f"Fetched '{data.get('title')}' ({data.get('difficulty')})!", icon="🌐")
+                        st.rerun()
+                    else:
+                        st.error("Could not fetch LeetCode problem. Please check the URL or title.")
+                except Exception as e:
+                    st.error(f"Error fetching problem: {e}")
+
+
     # Check for preset query trigger
     preset = st.session_state.pop("preset_query", None)
 
@@ -139,7 +175,21 @@ def render_chat_window(backend_url: str):
                     if extracted_code:
                         if st.button("📋 Copy to Code Box", key=f"copy_code_btn_{idx}", use_container_width=True):
                             st.session_state["sandbox_code"] = extracted_code
-                            st.toast("Code copied to Code Sandbox on the right!", icon="📋")
+                            # Pre-load test cases into sandbox
+                            try:
+                                res = requests.post(f"{backend_url}/api/test-cases/generate", json={"code": extracted_code}, timeout=15)
+                                if res.status_code == 200:
+                                    data = res.json()
+                                    st.session_state["sandbox_test_cases"] = data.get("test_cases", [])
+                                    st.session_state["sandbox_test_explanation"] = data.get("explanation", "")
+                                    st.session_state["active_sandbox_view"] = "test_cases"
+                                    st.session_state["test_results"] = None
+                            except Exception:
+                                st.session_state["sandbox_test_cases"] = []
+                                st.session_state["sandbox_test_explanation"] = ""
+                                st.session_state["test_results"] = None
+
+                            st.toast("Code & Test Cases copied to Sandbox! Click '▶️ Run Code' or '🔍 Find Cases' to test.", icon="📋")
                             st.rerun()
 
     # Render Dynamic Follow-Up Prompt Suggestions under last Assistant response
@@ -162,7 +212,31 @@ def render_chat_window(backend_url: str):
 
     if active_query:
         # Append User Message to Chat History
-        st.session_state["chat_history"].append({"role": "user", "content": active_query})
+        user_msg = {"role": "user", "content": active_query}
+        st.session_state["chat_history"].append(user_msg)
+
+        # Auto-create local session and persist user message
+        user_id = "local_user"
+        if not st.session_state.get("current_session_id"):
+            title = active_query[:35] + "..." if len(active_query) > 35 else active_query
+            if "Solve the LeetCode problem:" in active_query:
+                title = active_query.split("Solve the LeetCode problem:")[1].split("(")[0].strip("* \n") or "LeetCode Problem"
+            try:
+                c_res = requests.post(f"{backend_url}/api/sessions/create", json={"user_id": user_id, "title": title}, timeout=5)
+                if c_res.status_code == 200:
+                    st.session_state["current_session_id"] = c_res.json().get("id")
+            except Exception:
+                pass
+
+        if st.session_state.get("current_session_id"):
+            try:
+                requests.post(
+                    f"{backend_url}/api/sessions/{st.session_state['current_session_id']}/message?user_id={user_id}",
+                    json={"role": "user", "content": active_query},
+                    timeout=5
+                )
+            except Exception:
+                pass
 
         # Prepare backend request payload
         history_payload = [
@@ -176,7 +250,6 @@ def render_chat_window(backend_url: str):
             "similarity_threshold": st.session_state.get("similarity_threshold", 0.60)
         }
 
-
         with st.spinner("Thinking..."):
             try:
                 res = requests.post(f"{backend_url}/api/chat", json=payload, timeout=30)
@@ -189,8 +262,22 @@ def render_chat_window(backend_url: str):
                         "content": response_text,
                         "metadata": data
                     })
+
+                    # Persist assistant message to local session
+                    if st.session_state.get("current_session_id"):
+                        try:
+                            requests.post(
+                                f"{backend_url}/api/sessions/{st.session_state['current_session_id']}/message?user_id={user_id}",
+                                json={"role": "assistant", "content": response_text, "metadata": data},
+                                timeout=5
+                            )
+                        except Exception:
+                            pass
+
                     st.rerun()
                 else:
                     st.error(f"Error from server: {res.text}")
             except Exception as e:
                 st.error(f"Failed to communicate with backend: {e}")
+
+

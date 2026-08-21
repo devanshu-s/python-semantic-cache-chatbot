@@ -18,9 +18,12 @@ class Settings(BaseSettings):
     CACHE_METADATA_PATH: str = os.getenv("CACHE_METADATA_PATH", "backend/database/cache_store.json")
     
     # Gemini AI Models
-    GEMINI_MODEL: str = os.getenv("GEMINI_MODEL", "gemini-2.0-flash-lite")
+    GEMINI_MODEL: str = os.getenv("GEMINI_MODEL", "gemini-3.5-flash-lite")
     EMBEDDING_MODEL: str = os.getenv("EMBEDDING_MODEL", "text-embedding-004")
+
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
 settings = Settings()
+
+

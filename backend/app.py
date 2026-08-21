@@ -3,7 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 
 from backend.config.settings import settings
-from backend.routes import chat, cache, metrics
+from backend.routes import chat, cache, metrics, test_cases, leetcode, sessions
 from backend.utils.logger import logger
 from backend.services.faiss_service import faiss_service
 
@@ -34,6 +34,12 @@ app.add_middleware(
 app.include_router(chat.router)
 app.include_router(cache.router)
 app.include_router(metrics.router)
+app.include_router(test_cases.router)
+app.include_router(leetcode.router)
+app.include_router(sessions.router)
+
+
+
 
 @app.get("/")
 async def root():

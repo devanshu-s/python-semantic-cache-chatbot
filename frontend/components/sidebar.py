@@ -1,6 +1,8 @@
+import os
 import streamlit as st
 import requests
 from datetime import datetime
+
 
 def generate_markdown_export() -> str:
     """
@@ -36,17 +38,75 @@ def generate_markdown_export() -> str:
 
 def render_sidebar(backend_url: str):
     """
-    Render a clean Streamlit sidebar for chat controls, chat export, and backend health status.
+    Render a clean Streamlit sidebar for user auth, ChatGPT-style chat sessions,
+    chat controls, chat export, and backend health status.
     """
     with st.sidebar:
         st.image("https://img.icons8.com/color/96/python--v1.png", width=56)
         st.title("Python Assistant")
         st.caption("Powered by Google Gemini & Semantic Cache")
 
+        # -------------------------------------------------------------
+        # 💬 CHATGPT-STYLE LOCAL MULTI-SESSION CHAT HISTORY
+        # -------------------------------------------------------------
+        if "current_session_id" not in st.session_state:
+            st.session_state["current_session_id"] = None
+
+        # ➕ New Chat Button
+        if st.button("➕ New Chat", use_container_width=True, type="primary", key="new_chat_btn"):
+            st.session_state["chat_history"] = []
+            st.session_state["current_session_id"] = None
+            st.session_state["preset_query"] = None
+            st.toast("Started new conversation!", icon="✨")
+            st.rerun()
+
+        st.markdown("### 💬 Recent Chats")
+        
+        # Fetch saved sessions from local disk backend store
+        try:
+            sess_res = requests.get(f"{backend_url}/api/sessions/list?user_id=local_user", timeout=5)
+            if sess_res.status_code == 200:
+                sessions = sess_res.json()
+                if not sessions:
+                    st.caption("*No saved conversations yet.*")
+                else:
+                    for s in sessions:
+                        s_id = s.get("id")
+                        s_title = s.get("title", "Conversation")
+                        is_active = (s_id == st.session_state.get("current_session_id"))
+                        
+                        # Clean display title
+                        display_label = f"📌 {s_title}" if is_active else f"💬 {s_title}"
+                        
+                        col_s_btn, col_s_del = st.columns([4, 1])
+                        with col_s_btn:
+                            if st.button(display_label, key=f"sess_btn_{s_id}", use_container_width=True):
+                                # Load messages for this session
+                                load_res = requests.get(f"{backend_url}/api/sessions/{s_id}?user_id=local_user", timeout=5)
+                                if load_res.status_code == 200:
+                                    msgs = load_res.json()
+                                    st.session_state["chat_history"] = msgs
+                                    st.session_state["current_session_id"] = s_id
+                                    st.rerun()
+
+                        with col_s_del:
+                            if st.button("🗑️", key=f"del_sess_{s_id}", help="Delete chat"):
+                                requests.delete(f"{backend_url}/api/sessions/{s_id}?user_id=local_user", timeout=5)
+                                if st.session_state.get("current_session_id") == s_id:
+                                    st.session_state["chat_history"] = []
+                                    st.session_state["current_session_id"] = None
+                                st.toast("Chat deleted", icon="🗑️")
+                                st.rerun()
+        except Exception as e:
+            st.caption(f"Could not load sessions: {e}")
+
         st.divider()
+
+
 
         # Chat & Cache Management Actions
         st.markdown("### Actions")
+
 
         if st.button("🧹 Clear Chat History", use_container_width=True, key="clear_chat_btn"):
             st.session_state["chat_history"] = []
@@ -91,7 +151,7 @@ def render_sidebar(backend_url: str):
             max_value=1.00,
             value=float(current_thresh),
             step=0.05,
-            help="Adjust the minimum cosine similarity required for a Cache Hit. Lower values require closer query matches; higher values accept looser semantic matches.",
+            help="Minimum cosine similarity score required for a Cache Hit (Score ≥ Threshold). LOWER values allow looser semantic matches and give HIGHER cache hits; HIGHER values require near-exact matches.",
             key="thresh_slider"
         )
 
@@ -105,13 +165,13 @@ def render_sidebar(backend_url: str):
             st.toast(f"Threshold set to {new_thresh:.2f}", icon="🎛️")
             st.rerun()
 
-        # Sensitivity Badge helper
-        if new_thresh < 0.40:
-            st.caption("🎯 **Mode: Strict Match** (Higher precision, fewer cache hits)")
-        elif new_thresh <= 0.70:
-            st.caption("⚖️ **Mode: Balanced** (Optimal cache hit ratio)")
+        # Sensitivity Badge helper (Score >= Threshold)
+        if new_thresh <= 0.60:
+            st.caption("⚡ **Mode: High Cache Hits** (Looser semantic matching, higher hit rate)")
+        elif new_thresh <= 0.80:
+            st.caption("⚖️ **Mode: Balanced** (Optimal precision & cache hit balance)")
         else:
-            st.caption("⚡ **Mode: High Cache Hits** (Looser semantic matching)")
+            st.caption("🎯 **Mode: Strict Match** (High precision, near-identical queries only)")
 
         st.divider()
 

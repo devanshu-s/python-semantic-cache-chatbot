@@ -12,8 +12,11 @@ htmlcov/
 # Database & Vector Index
 backend/database/faiss.index
 backend/database/cache_store.json
+backend/database/user_sessions.json
+backend/database/*copy*.json
 backend/database/metadata.db
 *.index
+
 
 # Virtual Environments
 venv/
