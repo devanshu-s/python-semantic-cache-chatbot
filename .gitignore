@@ -1,7 +1,11 @@
 # Environment variables
 .env
 
+# Markdown files
+*.md
+
 # Python Byte Code & Cache
+
 __pycache__/
 *.py[cod]
 *$py.class
